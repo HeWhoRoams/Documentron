@@ -1,0 +1,71 @@
+openapi: 3.0.0
+info:
+  title: Doc Synthesis API
+  version: 1.0.0
+paths:
+  /synthesize:
+    post:
+      summary: Synthesize documentation from artifacts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                artifacts:
+                  type: array
+                  items:
+                    type: string
+                profile:
+                  type: string
+                out_dir:
+                  type: string
+                max_docs:
+                  type: integer
+                temperature:
+                  type: number
+                seed:
+                  type: integer
+      responses:
+        '200':
+          description: Docs generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  docs:
+                    type: array
+                    items:
+                      type: string
+  /report:
+    post:
+      summary: Verify and report on synthesized docs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                artifacts:
+                  type: array
+                  items:
+                    type: string
+                docs:
+                  type: array
+                  items:
+                    type: string
+                format:
+                  type: string
+      responses:
+        '200':
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report:
+                    type: string
