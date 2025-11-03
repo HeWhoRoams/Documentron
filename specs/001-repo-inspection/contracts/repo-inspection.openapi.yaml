@@ -1,0 +1,40 @@
+openapi: 3.0.0
+info:
+  title: Repository Inspection API
+  version: 1.0.0
+paths:
+  /inspect:
+    post:
+      summary: Analyze C# repository and emit artifacts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                repo_path:
+                  type: string
+                adapter:
+                  type: string
+                  enum: [csharp]
+      responses:
+        '200':
+          description: Artifacts generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  build_info:
+                    type: string
+                  symbol_graph:
+                    type: string
+                  api_surface:
+                    type: string
+                  deps_map:
+                    type: string
+                  quality_report:
+                    type: string
+        '400':
+          description: Invalid input or analysis failure
