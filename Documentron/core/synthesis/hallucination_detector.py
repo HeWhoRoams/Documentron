@@ -2,6 +2,7 @@
 Hallucination and uncertainty flagging logic.
 """
 
+import re
 from typing import Dict, Any, List
 
 class HallucinationDetector:
@@ -9,31 +10,42 @@ class HallucinationDetector:
 
     UNCERTAIN_TERMS = ['may', 'might', 'possibly', 'uncertain', 'unknown', 'phantom']
 
-    def __init__(self):
-        pass
-
     def flag_hallucinations(self, content: str, citations: List[Dict[str, Any]]) -> str:
         """Flag potential hallucinations in content."""
-        flagged_content = content
-
-        # Flag uncertain terms
+        # First, flag uncited sentences
+        flagged_content = self._flag_uncited_sentences(content, citations)
+        
+        # Then, flag uncertain terms
         for term in self.UNCERTAIN_TERMS:
-            if term in content.lower():
-                flagged_content = flagged_content.replace(term, f"**{term}** (potential hallucination)")
-
-        # Check for uncited claims
-        # Simple heuristic: sentences without citations
-        sentences = content.split('.')
-        for sentence in sentences:
-            if sentence.strip() and not self._has_citation(sentence, citations):
-                flagged_content = flagged_content.replace(sentence, f"{sentence} **[UNCITED]**")
-
+            pattern = re.compile(re.escape(term), re.IGNORECASE)
+            flagged_content = pattern.sub(f"**{term}** (potential hallucination)", flagged_content)
+        
         return flagged_content
+
+    def _flag_uncited_sentences(self, content: str, citations: List[Dict[str, Any]]) -> str:
+        """Flag sentences without citations."""
+        # Use regex to find sentence spans
+        sentence_pattern = r'[^.!?]*[.!?]+'
+        result = []
+        last_end = 0
+        for match in re.finditer(sentence_pattern, content):
+            # Append intervening text
+            result.append(content[last_end:match.start()])
+            sentence = match.group()
+            if sentence.strip() and not self._has_citation(sentence, citations):
+                result.append(sentence + " **[UNCITED]**")
+            else:
+                result.append(sentence)
+            last_end = match.end()
+        # Append remaining text
+        result.append(content[last_end:])
+        return ''.join(result)
 
     def _has_citation(self, sentence: str, citations: List[Dict[str, Any]]) -> bool:
         """Check if sentence has supporting citation."""
         # Simple check - in real implementation, more sophisticated
         for citation in citations:
-            if citation['file'] in sentence:
+            file_path = citation.get('file')
+            if file_path and file_path in sentence:
                 return True
         return False

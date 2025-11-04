@@ -3,7 +3,6 @@ Artifact loader and validator for Documentron.
 """
 
 import json
-import jsonschema
 from pathlib import Path
 from typing import Dict, Any
 
@@ -33,14 +32,20 @@ class ArtifactLoader:
             if not path.exists():
                 raise FileNotFoundError(f"Required artifact missing: {path}")
             with open(path, 'r') as f:
-                artifacts[artifact_file] = json.load(f)
+                try:
+                    artifacts[artifact_file] = json.load(f)
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Failed to parse JSON in {path}: {e}") from e
 
         # Load optional assets
-        assets_dir = self.artifacts_dir / 'assets'
-        if assets_dir.exists():
-            for asset_file in assets_dir.glob('*.json'):
-                with open(asset_file, 'r') as f:
-                    artifacts[f"assets/{asset_file.name}"] = json.load(f)
+        for pattern in self.OPTIONAL_ARTIFACTS:
+            for path in self.artifacts_dir.glob(pattern):
+                with open(path, 'r') as f:
+                    try:
+                        key = str(path.relative_to(self.artifacts_dir))
+                        artifacts[key] = json.load(f)
+                    except json.JSONDecodeError as e:
+                        raise ValueError(f"Failed to parse JSON in {path}: {e}") from e
 
         return artifacts
 
@@ -57,7 +62,21 @@ class ArtifactLoader:
 
     def _is_adversarial(self, data: Dict[str, Any]) -> bool:
         """Check for potentially adversarial content in artifacts."""
-        # Simple checks - in real implementation, more sophisticated
-        if 'phantom_api' in str(data).lower():
-            return True
-        return False
+        # Recursive traversal to check for 'phantom_api' in keys and string values
+        def _contains_phantom(obj):
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    if isinstance(key, str) and 'phantom_api' in key.lower():
+                        return True
+                    if _contains_phantom(value):
+                        return True
+            elif isinstance(obj, list):
+                for item in obj:
+                    if _contains_phantom(item):
+                        return True
+            elif isinstance(obj, str):
+                if 'phantom_api' in obj.lower():
+                    return True
+            return False
+        
+        return _contains_phantom(data)

@@ -2,15 +2,13 @@
 API coverage measurement and reporting.
 """
 
-from typing import Dict, Any, List
+import re
+from typing import Dict, Any
 
 class APICoverageReporter:
     """Measures and reports API coverage."""
 
-    def __init__(self):
-        pass
-
-    def measure_coverage(self, api_surface: Dict[str, Any], api_reference_content: str) -> Dict[str, Any]:
+    def measure_coverage(self, api_surface: Dict[str, Any], api_reference_content: str, threshold: float = 90.0) -> Dict[str, Any]:
         """Measure API coverage between surface and reference."""
         apis = api_surface.get('apis', [])
         total_apis = len(apis)
@@ -19,7 +17,8 @@ class APICoverageReporter:
 
         for api in apis:
             name = api.get('name', '')
-            if name in api_reference_content:
+            # Use word-boundary regex for exact matching to avoid false positives
+            if re.search(r'\b' + re.escape(name) + r'\b', api_reference_content, re.IGNORECASE):
                 documented += 1
             elif api.get('exclusion_reason'):
                 exclusions.append({'name': name, 'reason': api['exclusion_reason']})
@@ -31,7 +30,8 @@ class APICoverageReporter:
             'documented': documented,
             'coverage_percentage': coverage_pct,
             'exclusions': exclusions,
-            'meets_threshold': coverage_pct >= 90
+            'threshold': threshold,
+            'meets_threshold': coverage_pct >= threshold
         }
 
     def generate_report(self, coverage: Dict[str, Any]) -> str:
@@ -40,7 +40,7 @@ class APICoverageReporter:
         report += f"Total APIs: {coverage['total_apis']}\n"
         report += f"Documented: {coverage['documented']}\n"
         report += f"Coverage: {coverage['coverage_percentage']:.1f}%\n"
-        report += f"Meets 90% threshold: {'Yes' if coverage['meets_threshold'] else 'No'}\n\n"
+        report += f"Meets {coverage['threshold']}% threshold: {'Yes' if coverage['meets_threshold'] else 'No'}\n\n"
 
         if coverage['exclusions']:
             report += "## Exclusions\n\n"
@@ -48,3 +48,13 @@ class APICoverageReporter:
                 report += f"- {excl['name']}: {excl['reason']}\n"
 
         return report
+
+
+# Simple test for matching behavior
+if __name__ == "__main__":
+    # Test exact matching vs substring
+    content = "This mentions GetUser but not GetUserProfile."
+    assert re.search(r'\bGetUser\b', content, re.IGNORECASE)  # Should match exact
+    assert re.search(r'\bGetUserProfile\b', content, re.IGNORECASE)  # Should match exact
+    assert not re.search(r'\bGetUserP\b', content, re.IGNORECASE)  # Should not match partial
+    print("Matching test passed.")

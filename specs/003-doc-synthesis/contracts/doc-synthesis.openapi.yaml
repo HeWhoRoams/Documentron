@@ -27,6 +27,10 @@ paths:
                   type: number
                 seed:
                   type: integer
+              required:
+                - artifacts
+                - profile
+                - out_dir
       responses:
         '200':
           description: Docs generated
@@ -55,14 +59,40 @@ paths:
                     type: string
                 docs:
                   type: array
-                  items:
-                    type: string
-                format:
-                  type: string
-      responses:
-        '200':
-          description: Report generated
+      post:
+        operationId: generateReport
+        summary: Verify and report on synthesized docs
+        requestBody:
+          required: true
           content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  artifacts:
+                    type: array
+                    items:
+                      type: string
+                  docs:
+                    type: array
+                    items:
+                      type: string
+                  format:
+                    type: string
+        responses:
+          '200':
+            description: Report generated
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    report:
+                      type: string
+          '400':
+            description: Invalid request parameters
+          '500':
+            description: Server error during report generation          content:
             application/json:
               schema:
                 type: object

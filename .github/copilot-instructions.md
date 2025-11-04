@@ -144,3 +144,7 @@ ALL implementation code, artifacts, and deliverables reside in `Documentron/`:
 - PowerShell scripts follow error handling and path resolution patterns
 - JSON output modes for script automation
 - Escape and validate all user inputs in string replacements
+
+## Chat Shortcut
+
+- `/appdoc` or `appdoc.run` should trigger the full workflow: inspect → convert → synthesize → verify → report. When possible, run the VS Code task `AppDoc: Run All` and stream output to chat. Use `Documentron/artifacts` for artifacts and `Documentron/docs` for docs.

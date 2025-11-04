@@ -24,11 +24,11 @@
 
 ## Output
 - Docs generated in `docs/`:
-  - overview.md
-  - architecture.md
-  - api-reference.md
-  - dependencies.md
-  - maintenance-notes.md
+  - overview.md — high-level product overview (~1–2 pages, 500–1000 lines)
+  - architecture.md — system architecture and design patterns (~2–3 pages, 800–1500 lines)
+  - api-reference.md — auto-generated API docs with endpoint signatures and examples (~5–10 pages, 2000–4000 lines)
+  - dependencies.md — dependency list, versions, and compatibility notes (~1 page, 200–500 lines)
+  - maintenance-notes.md — operational guidance and troubleshooting (~1–2 pages, 400–800 lines)
 
 ## Troubleshooting
 - If docs lack citations, check artifact paths and JSON pointers.
