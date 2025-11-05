@@ -32,9 +32,6 @@ A lean, deterministic inspection and documentation toolkit for C# codebases. It 
 # PowerShell (from repo root)
 ./Documentron/appdoc.ps1
 
-# Or from the inner Documentron folder
-./appdoc.ps1
-
 # Optional: Python directly (from repo root)
 py -3 Documentron/ux/cli/appdoc.py --repo .
 ```

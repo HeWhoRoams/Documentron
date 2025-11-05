@@ -103,32 +103,7 @@ def bootstrap_workspace(workspace_root: Path) -> None:
                 ),
                 encoding="utf-8",
             )
-        # Bootstrap launchers if missing
-        ps1 = workspace_root / "appdoc.ps1"
-        if not ps1.exists():
-            ps1.write_text(
-                (
-                    "Param(\n"
-                    "    [string]$Repo = '.',\n"
-                    "    [string]$Artifacts = 'Generated Documentation',\n"
-                    "    [string]$Docs = 'Generated Documentation/deterministic/docs',\n"
-                    "    [string[]]$Steps,\n"
-                    "    [string[]]$Skip\n"
-                    ")\n\n"
-                    "$argsList = @('Documentron/ux/cli/appdoc.py', '--repo', $Repo, '--artifacts', $Artifacts, '--docs', $Docs)\n"
-                    "if ($Steps) { $argsList += @('--steps') + $Steps }\n"
-                    "if ($Skip)  { $argsList += @('--skip')  + $Skip }\n\n"
-                    "function Invoke-Python($argsList) {\n"
-                    "  if ($env:PYTHONEXECUTABLE) { & $env:PYTHONEXECUTABLE $argsList; return $LASTEXITCODE }\n"
-                    "  try { py -3 --version *> $null; if ($LASTEXITCODE -eq 0) { py -3 $argsList; return $LASTEXITCODE } } catch {}\n"
-                    "  try { python --version *> $null; if ($LASTEXITCODE -eq 0) { python $argsList; return $LASTEXITCODE } } catch {}\n"
-                    "  Write-Error 'Python not found. Please install Python 3.11+ or set PYTHONEXECUTABLE.'\n"
-                    "  return 1\n"
-                    "}\n\n"
-                    "exit (Invoke-Python $argsList)\n"
-                ),
-                encoding="utf-8",
-            )
+        # No root PowerShell launcher to keep root clean; use Documentron/appdoc.ps1
         # No CMD launcher; PowerShell + Python only
     except Exception as e:
         print(f"Bootstrap skipped: {e}", file=sys.stderr)

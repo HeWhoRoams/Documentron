@@ -33,9 +33,20 @@ if (-not $Repo -or $Repo -eq "") {
   $Repo = (Get-Item $moduleDir).Parent.FullName
 }
 
-# Ensure a repo-local virtual environment and required packages
-$venvDir = Join-Path $Repo ".venv"
-$venvPython = Join-Path $venvDir "Scripts/python.exe"
+# Ensure a virtual environment and required packages
+# Prefer venv inside the Documentron module directory to keep repo root clean;
+# fall back to an existing root-level venv if present.
+$venvDirPrimary = Join-Path $ScriptRoot ".venv"
+$venvDirFallback = Join-Path $Repo ".venv"
+$venvPythonPrimary = Join-Path $venvDirPrimary "Scripts/python.exe"
+$venvPythonFallback = Join-Path $venvDirFallback "Scripts/python.exe"
+if (Test-Path $venvPythonFallback -and -not (Test-Path $venvPythonPrimary)) {
+  $venvDir = $venvDirFallback
+  $venvPython = $venvPythonFallback
+} else {
+  $venvDir = $venvDirPrimary
+  $venvPython = $venvPythonPrimary
+}
 
 function New-VenvIfMissing {
   if (-not (Test-Path $venvPython)) {
