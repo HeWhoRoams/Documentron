@@ -1,0 +1,27 @@
+{
+  "name": "documentron-appdoc",
+  "displayName": "Documentron AppDoc",
+  "description": "Run Documentron AppDoc workflow (inspect → convert → synthesize → verify → report) from VS Code.",
+  "version": "0.0.1",
+  "publisher": "documentron",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCommand:documentron.appdoc.runAll",
+    "onCommand:documentron.appdoc.runSelectSteps"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "documentron.appdoc.runAll",
+        "title": "AppDoc: Run All"
+      },
+      {
+        "command": "documentron.appdoc.runSelectSteps",
+        "title": "AppDoc: Run Selected Steps"
+      }
+    ]
+  },
+  "main": "./out/extension.js"
+}
+

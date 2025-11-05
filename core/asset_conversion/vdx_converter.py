@@ -1,13 +1,14 @@
 """
-XLSX Converter
+VDX Converter
 
-Converts Microsoft Excel spreadsheets (.xlsx) to normalized content.
+Converts Microsoft Visio diagrams (.vdx) to normalized content.
+.vdx files are XML-based, so we parse the XML structure.
 """
 
 import hashlib
 from pathlib import Path
 from typing import Dict, Any, List
-# Import openpyxl lazily in functions to avoid hard import dependency at module import time.
+from defusedxml import ElementTree as ET
 
 from .error_handling import MalformedFileError, EncryptedFileError, FileTooLargeError, report_skipped_file
 from .provenance import get_library_versions
@@ -20,12 +21,12 @@ def calculate_file_hash(file_path: Path) -> str:
             hash_sha256.update(chunk)
     return hash_sha256.hexdigest()
 
-def extract_xlsx_content(file_path: Path, max_size: int) -> Dict[str, Any]:
+def extract_vdx_content(file_path: Path, max_size: int) -> Dict[str, Any]:
     """
-    Extract content from an XLSX file.
+    Extract content from a VDX file.
 
     Args:
-        file_path: Path to the XLSX file
+        file_path: Path to the VDX file
         max_size: Maximum file size in bytes
 
     Returns:
@@ -40,56 +41,61 @@ def extract_xlsx_content(file_path: Path, max_size: int) -> Dict[str, Any]:
         raise FileTooLargeError(f"File size {file_path.stat().st_size} exceeds limit {max_size}")
 
     try:
-        from openpyxl import load_workbook  # type: ignore
+        tree = ET.parse(file_path)
+        root = tree.getroot()
     except Exception as e:
-        raise MalformedFileError(
-            f"XLSX support requires openpyxl; import failed: {e}"
-        )
-
-    try:
-        wb = load_workbook(filename=file_path, read_only=True, data_only=True)
-    except Exception as e:
-        if "password" in str(e).lower() or "encrypted" in str(e).lower():
-            raise EncryptedFileError(f"File appears to be encrypted: {e}")
-        else:
-            raise MalformedFileError(f"Cannot parse XLSX file: {e}")
+        raise MalformedFileError(f"Cannot parse VDX file: {e}")
 
     content = {
-        "sheets": [],
+        "pages": [],
+        "shapes": [],
         "metadata": {}
     }
 
-    # Extract sheets
-    for sheet_name in wb.sheetnames:
-        ws = wb[sheet_name]
-        sheet_data = {
-            "name": sheet_name,
-            "rows": []
+    # Visio XML namespace
+    ns = {'v': 'http://schemas.microsoft.com/visio/2003/core'}
+
+    # Extract pages
+    pages = root.findall('.//v:Page', ns)
+    for page in pages:
+        page_data = {
+            "name": page.get('Name', 'Unnamed Page'),
+            "shapes": []
         }
 
-        for row in ws.iter_rows(values_only=True):
-            # Convert None to empty string, keep other values
-            cleaned_row = [cell if cell is not None else "" for cell in row]
-            if any(cleaned_row):  # Only include non-empty rows
-                sheet_data["rows"].append(cleaned_row)
+        # Extract shapes in this page
+        shapes = page.findall('.//v:Shape', ns)
+        for shape in shapes:
+            shape_data = {
+                "id": shape.get('ID'),
+                "type": shape.get('Type'),
+                "text": ""
+            }
 
-        content["sheets"].append(sheet_data)
+            # Extract text
+            text_elem = shape.find('.//v:Text', ns)
+            if text_elem is not None:
+                shape_data["text"] = ''.join(text_elem.itertext()).strip()
+
+            page_data["shapes"].append(shape_data)
+            content["shapes"].append(shape_data)
+
+        content["pages"].append(page_data)
 
     # Extract basic metadata
     content["metadata"] = {
-        "sheet_count": len(wb.sheetnames),
-        "total_rows": sum(len(sheet["rows"]) for sheet in content["sheets"])
+        "page_count": len(pages),
+        "total_shapes": len(content["shapes"])
     }
 
-    wb.close()
     return content
 
-def convert_xlsx_file(file_path: Path, output_dir: Path, max_size: int) -> Path:
+def convert_vdx_file(file_path: Path, output_dir: Path, max_size: int) -> Path:
     """
-    Convert a single XLSX file to JSON artifact.
+    Convert a single VDX file to JSON artifact.
 
     Args:
-        file_path: Path to the XLSX file
+        file_path: Path to the VDX file
         output_dir: Output directory for artifacts
         max_size: Maximum file size
 
@@ -98,7 +104,7 @@ def convert_xlsx_file(file_path: Path, output_dir: Path, max_size: int) -> Path:
     """
     try:
         file_hash = calculate_file_hash(file_path)
-        content = extract_xlsx_content(file_path, max_size)
+        content = extract_vdx_content(file_path, max_size)
 
         provenance = {
             "converter_version": "1.0.0",
@@ -110,7 +116,7 @@ def convert_xlsx_file(file_path: Path, output_dir: Path, max_size: int) -> Path:
             output_dir=output_dir,
             original_path=file_path,
             file_hash=file_hash,
-            file_type="xlsx",
+            file_type="vdx",
             content=content,
             provenance=provenance
         )

@@ -10,20 +10,20 @@
   - (optional) assets/*.json
 
 ## Steps
-1. Run doc synthesis:
+1. Run doc synthesis (default paths):
    ```bash
-   appdoc synthesize --artifacts ./out --profile default --out ./docs --max-docs 6 --temperature 0.2 --seed 42
+   appdoc synthesize --artifacts "Generated Documentation" --profile default --out "Generated Documentation/docs" --max-docs 6 --temperature 0.2 --seed 42
    ```
 2. Verify docs:
    ```bash
-   appdoc report --artifacts ./out --docs ./docs --format md
+   appdoc report --artifacts "Generated Documentation" --docs "Generated Documentation/docs" --format md
    ```
 3. Check that all docs contain citations and 'Where this may be wrong' sections.
 4. Confirm API coverage ≥90% in api-reference.md or exclusions are justified.
 5. For identical inputs, verify docs are byte-identical or have identical semantic hashes.
 
 ## Output
-- Docs generated in `docs/`:
+- Docs generated in `Generated Documentation/docs/`:
   - overview.md — high-level product overview (~1–2 pages, 500–1000 lines)
   - architecture.md — system architecture and design patterns (~2–3 pages, 800–1500 lines)
   - api-reference.md — auto-generated API docs with endpoint signatures and examples (~5–10 pages, 2000–4000 lines)
