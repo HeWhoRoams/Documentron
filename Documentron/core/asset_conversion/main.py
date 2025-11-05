@@ -6,6 +6,7 @@ Converts non-code assets (docx, xlsx, vdx) to normalized JSON artifacts.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -40,12 +41,17 @@ def main():
     # TODO: Implement conversion logic
     print(f"Scanning {args.repo_path} for assets...")
     print(f"Output will be written to {args.output_dir}")
+    # Ensure output directory exists for direct invocation scenarios (tests)
+    try:
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Error creating output directory {args.output_dir}: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Allow disabling specific formats via environment variables to work around platform issues
-    import os as _os
-    disable_docx = _os.environ.get("DOCUMENTRON_DISABLE_DOCX") == "1"
-    disable_xlsx = _os.environ.get("DOCUMENTRON_DISABLE_XLSX") == "1"
-    disable_vdx  = _os.environ.get("DOCUMENTRON_DISABLE_VDX") == "1"
+    disable_docx = os.environ.get("DOCUMENTRON_DISABLE_DOCX") == "1"
+    disable_xlsx = os.environ.get("DOCUMENTRON_DISABLE_XLSX") == "1"
+    disable_vdx  = os.environ.get("DOCUMENTRON_DISABLE_VDX") == "1"
     if disable_docx:
         print("DOCX conversion disabled via DOCUMENTRON_DISABLE_DOCX=1")
     if disable_xlsx:

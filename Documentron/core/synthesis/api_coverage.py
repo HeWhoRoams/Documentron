@@ -52,8 +52,8 @@ class APICoverageReporter:
 
 # Simple test for matching behavior
 if __name__ == "__main__":
-    # Test exact matching vs substring
-    content = "This mentions GetUser but not GetUserProfile."
+    # Test exact matching vs substring - both exact names should match while partial names should not
+    content = "This mentions GetUser and GetUserProfile."
     assert re.search(r'\bGetUser\b', content, re.IGNORECASE)  # Should match exact
     assert re.search(r'\bGetUserProfile\b', content, re.IGNORECASE)  # Should match exact
     assert not re.search(r'\bGetUserP\b', content, re.IGNORECASE)  # Should not match partial

@@ -17,28 +17,30 @@ class HallucinationDetector:
         
         # Then, flag uncertain terms
         for term in self.UNCERTAIN_TERMS:
-            pattern = re.compile(re.escape(term), re.IGNORECASE)
-            flagged_content = pattern.sub(f"**{term}** (potential hallucination)", flagged_content)
+            pattern = re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE)
+            flagged_content = pattern.sub(lambda match: f"**{match.group(0)}** (potential hallucination)", flagged_content)
         
         return flagged_content
 
     def _flag_uncited_sentences(self, content: str, citations: List[Dict[str, Any]]) -> str:
         """Flag sentences without citations."""
-        # Use regex to find sentence spans
-        sentence_pattern = r'[^.!?]*[.!?]+'
+        # More robust sentence pattern that handles final sentences
+        sentence_pattern = r'[^.!?]*[.!?]+(?:\s+|$)|[^.!?]+$'
         result = []
         last_end = 0
         for match in re.finditer(sentence_pattern, content):
             # Append intervening text
-            result.append(content[last_end:match.start()])
+            if match.start() > last_end:
+                result.append(content[last_end:match.start()])
             sentence = match.group()
             if sentence.strip() and not self._has_citation(sentence, citations):
-                result.append(sentence + " **[UNCITED]**")
+                result.append(sentence.rstrip() + " **[UNCITED]**" + ("\n" if sentence.endswith("\n") else ""))
             else:
                 result.append(sentence)
             last_end = match.end()
-        # Append remaining text
-        result.append(content[last_end:])
+        # Append any remaining text
+        if last_end < len(content):
+            result.append(content[last_end:])
         return ''.join(result)
 
     def _has_citation(self, sentence: str, citations: List[Dict[str, Any]]) -> bool:

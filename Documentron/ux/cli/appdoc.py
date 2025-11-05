@@ -130,7 +130,7 @@ def main() -> int:
     reports_dir = artifacts_root / "report"
     docs_dir = (args.docs if args.docs.is_absolute() else (repo / args.docs)).resolve()
     context_dir = (args.context if args.context.is_absolute() else (repo / args.context)).resolve()
-    # (context_dir already resolved above)
+
 
     ensure_dirs(assets_dir, reports_dir, docs_dir)
 

@@ -1,0 +1,156 @@
+{
+  "count": 30,
+  "truncated": false,
+  "files": [
+    {
+      "path": ".gitignore",
+      "size": 513,
+      "ext": ""
+    },
+    {
+      "path": ".github/copilot-instructions.md",
+      "size": 6623,
+      "ext": ".md"
+    },
+    {
+      "path": ".github/prompts/speckit.analyze.prompt.md",
+      "size": 7177,
+      "ext": ".md"
+    },
+    {
+      "path": ".github/prompts/speckit.checklist.prompt.md",
+      "size": 16815,
+      "ext": ".md"
+    },
+    {
+      "path": ".github/prompts/speckit.clarify.prompt.md",
+      "size": 11210,
+      "ext": ".md"
+    },
+    {
+      "path": ".github/prompts/speckit.constitution.prompt.md",
+      "size": 5075,
+      "ext": ".md"
+    },
+    {
+      "path": ".github/prompts/speckit.implement.prompt.md",
+      "size": 7420,
+      "ext": ".md"
+    },
+    {
+      "path": ".github/prompts/speckit.plan.prompt.md",
+      "size": 2916,
+      "ext": ".md"
+    },
+    {
+      "path": ".github/prompts/speckit.specify.prompt.md",
+      "size": 12615,
+      "ext": ".md"
+    },
+    {
+      "path": ".github/prompts/speckit.tasks.prompt.md",
+      "size": 6086,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/001-repo-inspection/data-model.md",
+      "size": 992,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/001-repo-inspection/plan.md",
+      "size": 4124,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/001-repo-inspection/quickstart.md",
+      "size": 940,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/001-repo-inspection/research.md",
+      "size": 1941,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/001-repo-inspection/spec.md",
+      "size": 6466,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/001-repo-inspection/tasks.md",
+      "size": 7201,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/001-repo-inspection/checklists/requirements.md",
+      "size": 1358,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/001-repo-inspection/contracts/repo-inspection.openapi.yaml",
+      "size": 1100,
+      "ext": ".yaml"
+    },
+    {
+      "path": "specs/002-asset-conversion/plan.md",
+      "size": 5367,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/002-asset-conversion/research.md",
+      "size": 2411,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/002-asset-conversion/spec.md",
+      "size": 5566,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/002-asset-conversion/tasks.md",
+      "size": 6879,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/003-doc-synthesis/data-model.md",
+      "size": 2944,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/003-doc-synthesis/plan.md",
+      "size": 4435,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/003-doc-synthesis/quickstart.md",
+      "size": 1672,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/003-doc-synthesis/research.md",
+      "size": 2074,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/003-doc-synthesis/spec.md",
+      "size": 6694,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/003-doc-synthesis/tasks.md",
+      "size": 6793,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/003-doc-synthesis/checklists/requirements.md",
+      "size": 1183,
+      "ext": ".md"
+    },
+    {
+      "path": "specs/003-doc-synthesis/contracts/doc-synthesis.openapi.yaml",
+      "size": 2824,
+      "ext": ".yaml"
+    }
+  ]
+}

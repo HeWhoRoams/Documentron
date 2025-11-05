@@ -50,7 +50,7 @@ def test_artifact_loader_loads_required_artifacts(tmp_path):
     assert len(artifacts['api.surface.json']['apis']) == 1
     assert artifacts['api.surface.json']['apis'][0]['name'] == 'TestAPI'
     assert artifacts['deps.map.json']['dependencies']['lib1'] == '1.0'
-    assert artifacts['quality.report.json']['placeholder'] == True
+    assert artifacts['quality.report.json']['placeholder']
     assert artifacts['quality.report.json']['metrics']['symbol_resolution_rate'] == 0.95
     assert artifacts['quality.report.json']['metrics']['project_discovery_rate'] == 1.0
     assert artifacts['quality.report.json']['metrics']['ms_per_kloc'] == 25

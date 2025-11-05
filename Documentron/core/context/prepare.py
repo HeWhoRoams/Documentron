@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List
@@ -20,9 +21,13 @@ EXCLUDED_DIRS = {'.git', '.venv', 'node_modules', '.specify', 'Documentron', 'Ge
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
-    with open(path, 'rb') as f:
-        for chunk in iter(lambda: f.read(8192), b''):
-            h.update(chunk)
+    try:
+        with open(path, 'rb') as f:
+            for chunk in iter(lambda: f.read(8192), b''):
+                h.update(chunk)
+    except (FileNotFoundError, PermissionError, OSError) as e:
+        logging.error(f"Failed to read file {path}: {e}")
+        raise IOError(f"Failed to read file {path}: {e}") from e
     return h.hexdigest()
 
 
@@ -30,12 +35,15 @@ def build_artifacts_index(artifacts_root: Path) -> Dict[str, Any]:
     items: List[Dict[str, Any]] = []
     if artifacts_root.exists():
         for p in sorted(artifacts_root.rglob('*.json')):
-            # Skip report JSONs; include them separately
-            rel = p.relative_to(artifacts_root).as_posix()
+            # Skip report JSONs; include them separately in quality.json
+            rel = p.relative_to(artifacts_root)
+            if rel.parts and rel.parts[0] == 'report':
+                continue
+            rel_posix = rel.as_posix()
             size = p.stat().st_size
             digest = sha256_file(p)
             items.append({
-                'path': rel,
+                'path': rel_posix,
                 'size': size,
                 'sha256': digest,
             })

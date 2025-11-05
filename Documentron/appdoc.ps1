@@ -40,7 +40,11 @@ $venvDirPrimary = Join-Path $ScriptRoot ".venv"
 $venvDirFallback = Join-Path $Repo ".venv"
 $venvPythonPrimary = Join-Path $venvDirPrimary "Scripts/python.exe"
 $venvPythonFallback = Join-Path $venvDirFallback "Scripts/python.exe"
-if (Test-Path $venvPythonFallback -and -not (Test-Path $venvPythonPrimary)) {
+
+# Evaluate existence separately to avoid parser quirks on some PS versions
+$hasFallback = Test-Path -LiteralPath $venvPythonFallback
+$hasPrimary  = Test-Path -LiteralPath $venvPythonPrimary
+if ($hasFallback -and -not $hasPrimary) {
   $venvDir = $venvDirFallback
   $venvPython = $venvPythonFallback
 } else {
@@ -48,12 +52,36 @@ if (Test-Path $venvPythonFallback -and -not (Test-Path $venvPythonPrimary)) {
   $venvPython = $venvPythonPrimary
 }
 
+function Get-PreferredPython {
+  # Prefer versions with stable native wheels for lxml/python-docx
+  $candidates = @('3.11','3.12','3.10')
+  foreach ($v in $candidates) {
+    try {
+      $out = & py -$v -c "import sys; print(sys.executable)" 2>$null
+      if ($LASTEXITCODE -eq 0 -and $out) { return $out.Trim() }
+    } catch {}
+  }
+  try {
+    $out = & py -3 -c "import sys; print(sys.executable)" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $out) { return $out.Trim() }
+  } catch {}
+  try {
+    $out = & python -c "import sys; print(sys.executable)" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $out) { return $out.Trim() }
+  } catch {}
+  return $null
+}
+
 function New-VenvIfMissing {
   if (-not (Test-Path $venvPython)) {
     Write-Host "Creating virtual environment at $venvDir" -ForegroundColor Cyan
     try {
-      py -3 -m venv "$venvDir" 2>$null
-      if ($LASTEXITCODE -ne 0) { python -m venv "$venvDir" }
+      $basePy = Get-PreferredPython
+      if (-not $basePy) {
+        Write-Error "Could not locate a suitable Python (prefer 3.11/3.12). Install Python 3.11+ or set PYTHONEXECUTABLE."
+        exit 1
+      }
+      & $basePy -m venv "$venvDir"
     } catch {
       Write-Error "Failed to create virtual environment. Ensure Python 3.11+ is installed."
       exit 1
@@ -105,3 +133,4 @@ if ($DisableVdx)  { $env:DOCUMENTRON_DISABLE_VDX  = '1' }
 
 & $venvPython $argsList
 exit $LASTEXITCODE
+

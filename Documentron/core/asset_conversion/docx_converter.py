@@ -2,12 +2,17 @@
 DOCX Converter
 
 Converts Microsoft Word documents (.docx) to normalized content.
+
+Notes:
+- Avoids python-docx/lxml to prevent native crashes on some Windows setups.
+- Parses the underlying OOXML with defusedxml for safety and stability.
 """
 
 import hashlib
+import zipfile
 from pathlib import Path
-from typing import Dict, Any, List
-# Import python-docx lazily in functions to avoid hard import dependency at module import time.
+from typing import Dict, Any
+from defusedxml import ElementTree as ET
 
 from .error_handling import MalformedFileError, EncryptedFileError, FileTooLargeError, report_skipped_file
 from .provenance import get_library_versions
@@ -39,21 +44,32 @@ def extract_docx_content(file_path: Path, max_size: int) -> Dict[str, Any]:
     if file_path.stat().st_size > max_size:
         raise FileTooLargeError(f"File size {file_path.stat().st_size} exceeds limit {max_size}")
 
-    # Import here so environments without python-docx can still import this module
+    # Open as zip and parse core document XML
     try:
-        from docx import Document  # type: ignore
-    except Exception as e:
-        raise MalformedFileError(
-            f"DOCX support requires python-docx; import failed: {e}"
-        )
+        with zipfile.ZipFile(file_path, 'r') as zf:
+            try:
+                doc_xml = zf.read('word/document.xml')
+            except KeyError:
+                # Minimal/empty docx or corrupted
+                raise MalformedFileError("Missing word/document.xml in DOCX")
+    except RuntimeError as e:
+        # Bad zip or encrypted container
+        msg = str(e).lower()
+        if "encrypted" in msg or "password" in msg:
+            raise EncryptedFileError(f"File appears to be encrypted: {e}")
+        raise MalformedFileError(f"Cannot open DOCX as zip: {e}")
+    except zipfile.BadZipFile as e:
+        raise MalformedFileError(f"Invalid DOCX (bad zip): {e}")
 
     try:
-        doc = Document(file_path)
+        root = ET.fromstring(doc_xml)
     except Exception as e:
-        if "password" in str(e).lower() or "encrypted" in str(e).lower():
-            raise EncryptedFileError(f"File appears to be encrypted: {e}")
-        else:
-            raise MalformedFileError(f"Cannot parse DOCX file: {e}")
+        raise MalformedFileError(f"Cannot parse DOCX XML: {e}")
+
+    # Namespaces used in WordprocessingML
+    ns = {
+        'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    }
 
     content = {
         "title": "",
@@ -62,33 +78,61 @@ def extract_docx_content(file_path: Path, max_size: int) -> Dict[str, Any]:
         "metadata": {}
     }
 
-    # Extract title (first paragraph if it's a heading)
-    if doc.paragraphs:
-        first_para = doc.paragraphs[0]
-        if first_para.style and first_para.style.name.startswith('Heading'):
-            content["title"] = first_para.text
+    # Helper to extract all text from a paragraph or cell
+    def _collect_text(elem) -> str:
+        parts = []
+        for t in elem.findall('.//w:t', ns):
+            # t.text may be None
+            parts.append(t.text or '')
+        return ''.join(parts).strip()
 
-    # Extract text content
-    for para in doc.paragraphs:
-        if para.text.strip():
-            content["text_content"].append({
-                "text": para.text,
-                "style": para.style.name if para.style else "Normal"
-            })
+    # Paragraphs
+    paragraphs = root.findall('.//w:p', ns)
+    for p in paragraphs:
+        text = _collect_text(p)
+        if not text:
+            continue
+        # Determine style name if present
+        style = "Normal"
+        ppr = p.find('w:pPr', ns)
+        if ppr is not None:
+            pstyle = ppr.find('w:pStyle', ns)
+            if pstyle is not None:
+                val = pstyle.attrib.get(f'{{{ns["w"]}}}val')
+                if val:
+                    style = val
+        content["text_content"].append({
+            "text": text,
+            "style": style
+        })
 
-    # Extract tables
-    for table in doc.tables:
+    # Title: first heading paragraph if present
+    for item in content["text_content"]:
+        st = item.get("style") or ""
+        if st.startswith("Heading"):
+            content["title"] = item["text"]
+            break
+
+    # Tables (rows/cells)
+    tables = root.findall('.//w:tbl', ns)
+    for tbl in tables:
         table_data = []
-        for row in table.rows:
-            row_data = [cell.text for cell in row.cells]
-            table_data.append(row_data)
-        content["tables"].append(table_data)
+        for tr in tbl.findall('w:tr', ns):
+            row = []
+            for tc in tr.findall('w:tc', ns):
+                row.append(_collect_text(tc))
+            # Include row if non-empty
+            if any(c for c in row):
+                table_data.append(row)
+        if table_data:
+            content["tables"].append(table_data)
 
-    # Extract basic metadata
+    # Basic metadata
+    word_count = sum(len(item["text"].split()) for item in content["text_content"]) if content["text_content"] else 0
     content["metadata"] = {
-        "word_count": sum(len(para.text.split()) for para in doc.paragraphs),
-        "paragraph_count": len(doc.paragraphs),
-        "table_count": len(doc.tables)
+        "word_count": word_count,
+        "paragraph_count": len(content["text_content"]),
+        "table_count": len(content["tables"]) if isinstance(content.get("tables"), list) else 0
     }
 
     return content

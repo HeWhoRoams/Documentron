@@ -62,8 +62,16 @@ class Program
                         var envDir = Environment.GetEnvironmentVariable("MSBUILD_PATH");
                         if (!string.IsNullOrWhiteSpace(envExe) && File.Exists(envExe))
                         {
-                            var dir = Path.GetDirectoryName(envExe)!;
-                            MSBuildLocator.RegisterMSBuildPath(dir);
+                            var dir = Path.GetDirectoryName(envExe);
+                            if (dir == null)
+                            {
+                                // Fall back for root paths (e.g., "C:\msbuild.exe")
+                                dir = Path.GetPathRoot(envExe) ?? Directory.GetParent(envExe)?.FullName;
+                            }
+                            if (!string.IsNullOrWhiteSpace(dir))
+                            {
+                                MSBuildLocator.RegisterMSBuildPath(dir);
+                            }
                         }
                         else if (!string.IsNullOrWhiteSpace(envDir) && Directory.Exists(envDir))
                         {
@@ -71,7 +79,19 @@ class Program
                         }
                         else
                         {
-                            MSBuildLocator.RegisterDefaults();
+                            try
+                            {
+                                // First attempt: standard defaults (prefers VS if installed)
+                                MSBuildLocator.RegisterDefaults();
+                            }
+                            catch
+                            {
+                                // Fallback: try to locate dotnet SDK's MSBuild assemblies
+                                var sdkPath = TryGetDotnetSdkPath();
+                                if (sdkPath == null)
+                                    throw; // rethrow original failure
+                                MSBuildLocator.RegisterMSBuildPath(sdkPath);
+                            }
                         }
                         s_msbuildRegistered = true;
                     }
@@ -105,23 +125,7 @@ class Program
                 File.WriteAllText(Path.Combine(artifactsDir, "build.info.json"), JsonSerializer.Serialize(buildInfo));
 
                 // Symbol graph - classes (semantic)
-                var symbols = new List<SymbolItem>();
-                foreach (var project in solution.Projects)
-                {
-                    var compilation = await project.GetCompilationAsync();
-                    if (compilation == null) continue;
-                    foreach (var syntaxTree in compilation.SyntaxTrees)
-                    {
-                        var semanticModel = compilation.GetSemanticModel(syntaxTree);
-                        var root = await syntaxTree.GetRootAsync();
-                        var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
-                        foreach (var classDecl in classDeclarations)
-                        {
-                            var symbol = semanticModel.GetDeclaredSymbol(classDecl);
-                            symbols.Add(new SymbolItem { Id = symbol?.ToDisplayString(), Kind = "class", Access = symbol?.DeclaredAccessibility.ToString() });
-                        }
-                    }
-                }
+                var symbols = await ExtractSymbolsFromProjects(solution.Projects);
                 File.WriteAllText(Path.Combine(artifactsDir, "symbol.graph.json"), JsonSerializer.Serialize(new { symbols }));
 
                 // API surface - public classes/methods
@@ -181,30 +185,30 @@ class Program
             File.WriteAllText(Path.Combine(artifactsDir, "build.info.json"), JsonSerializer.Serialize(buildInfoNoSln));
 
             // Symbol graph across projects
-            var symbolsNoSln = new List<SymbolItem>();
-            foreach (var project in sol.Projects)
-            {
-                var compilation = await project.GetCompilationAsync();
-                if (compilation == null) continue;
-                foreach (var syntaxTree in compilation.SyntaxTrees)
-                {
-                    var semanticModel = compilation.GetSemanticModel(syntaxTree);
-                    var root = await syntaxTree.GetRootAsync();
-                    var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
-                    foreach (var classDecl in classDeclarations)
-                    {
-                        var symbol = semanticModel.GetDeclaredSymbol(classDecl);
-                        symbolsNoSln.Add(new SymbolItem { Id = symbol?.ToDisplayString(), Kind = "class", Access = symbol?.DeclaredAccessibility.ToString() });
-                    }
-                }
-            }
+            var symbolsNoSln = await ExtractSymbolsFromProjects(sol.Projects);
             File.WriteAllText(Path.Combine(artifactsDir, "symbol.graph.json"), JsonSerializer.Serialize(new { symbols = symbolsNoSln }));
 
             var apiSurfaceNoSln = new { public_apis = symbolsNoSln.Where(s => s.Access == "Public").ToArray() };
             File.WriteAllText(Path.Combine(artifactsDir, "api.surface.json"), JsonSerializer.Serialize(apiSurfaceNoSln));
 
-            // Basic deps not easily available without parsing project refs; leave empty
-            File.WriteAllText(Path.Combine(artifactsDir, "deps.map.json"), JsonSerializer.Serialize(new { dependencies = new List<object>() }));
+            // Deps map - project references from loaded projects
+            var depsNoSln = new List<object>();
+            foreach (var project in sol.Projects)
+            {
+                foreach (var projectRef in project.ProjectReferences)
+                {
+                    // Try to resolve the referenced project by ID within the current solution
+                    var referencedProject = sol.Projects.FirstOrDefault(p => p.Id == projectRef.ProjectId);
+                    if (referencedProject != null)
+                    {
+                        depsNoSln.Add(new { from = project.Name, to = referencedProject.Name, kind = "project" });
+                    }
+                    // Note: ProjectReference doesn't have Include property in MSBuild workspace,
+                    // so we can only resolve references to projects that are actually loaded
+                }
+            }
+            var depsMapNoSln = new { dependencies = depsNoSln };
+            File.WriteAllText(Path.Combine(artifactsDir, "deps.map.json"), JsonSerializer.Serialize(depsMapNoSln));
 
             var qualityNoSln = new { placeholder = true, metrics = new { symbol_resolution_rate = symbolsNoSln.Count == 0 ? 0 : 1.0, project_discovery_rate = projInfos.Length > 0 ? 1.0 : 0.0, ms_per_kloc = 25 }, note = "Metrics are placeholders until real computation is implemented" };
             File.WriteAllText(Path.Combine(artifactsDir, "quality.report.json"), JsonSerializer.Serialize(qualityNoSln));
@@ -215,6 +219,77 @@ class Program
             // MSBuild inspection failed - fall back to lite mode
             Console.WriteLine($"MSBuild inspection failed: {ex.Message}");
             return false;
+        }
+    }
+
+    private static async Task<List<SymbolItem>> ExtractSymbolsFromProjects(IEnumerable<Project> projects)
+    {
+        var symbols = new List<SymbolItem>();
+        foreach (var project in projects)
+        {
+            var compilation = await project.GetCompilationAsync();
+            if (compilation == null) continue;
+            foreach (var syntaxTree in compilation.SyntaxTrees)
+            {
+                var semanticModel = compilation.GetSemanticModel(syntaxTree);
+                var root = await syntaxTree.GetRootAsync();
+                var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
+                foreach (var classDecl in classDeclarations)
+                {
+                    var symbol = semanticModel.GetDeclaredSymbol(classDecl);
+                    symbols.Add(new SymbolItem { Id = symbol?.ToDisplayString(), Kind = "class", Access = symbol?.DeclaredAccessibility.ToString() });
+                }
+            }
+        }
+        return symbols;
+    }
+
+    private static string? TryGetDotnetSdkPath()
+    {
+        try
+        {
+            // Use 'dotnet --list-sdks' and pick the highest version directory
+            var psi = new System.Diagnostics.ProcessStartInfo("dotnet", "--list-sdks")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p == null) return null;
+            var output = p.StandardOutput.ReadToEnd();
+            if (!p.WaitForExit(3000)) 
+            {
+                try { p.Kill(); } catch { }
+                return null;
+            }
+            if (p.ExitCode != 0) return null;
+            var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            // lines like: 8.0.100 [C:\Program Files\dotnet\sdk]
+            var sdkEntries = new List<(Version version, string path)>();
+            foreach (var line in lines)
+            {
+                var parts = line.Split('[', ']');
+                if (parts.Length >= 2)
+                {
+                    var verStr = parts[0].Trim();
+                    var basePath = parts[1].Trim();
+                    if (Version.TryParse(verStr.Split('-')[0], out var ver))
+                    {
+                        var full = Path.Combine(basePath, verStr);
+                        if (Directory.Exists(full))
+                        {
+                            sdkEntries.Add((ver, full));
+                        }
+                    }
+                }
+            }
+            if (sdkEntries.Count == 0) return null;
+            return sdkEntries.OrderByDescending(e => e.version).First().path;
+        }
+        catch
+        {
+            return null;
         }
     }
 

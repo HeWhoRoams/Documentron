@@ -4,6 +4,7 @@ CLI entry point for Documentron doc synthesis.
 """
 
 import argparse
+import json
 import logging
 import os
 import sys
@@ -51,7 +52,6 @@ def check_non_negative_int(value):
 
 def synthesize_command(args):
     """Handle synthesize command"""
-    logging.basicConfig(level=logging.INFO)
     
     artifacts_path = Path(args.artifacts)
     out_path = Path(args.out)
@@ -60,16 +60,13 @@ def synthesize_command(args):
     if not artifacts_path.exists():
         logging.error(f"Artifacts path does not exist: {artifacts_path}")
         return 1
-    if not (artifacts_path.is_file() or artifacts_path.is_dir()):
-        logging.error(f"Artifacts path is not a file or directory: {artifacts_path}")
-        return 1
     if not artifacts_path.is_dir():
         logging.error(f"Artifacts path must be a directory: {artifacts_path}")
         return 1
     
     # Validate output path
     try:
-        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.mkdir(parents=True, exist_ok=True)
         # Test write access
         test_file = out_path / ".test_write"
         test_file.write_text("test")
@@ -90,13 +87,9 @@ def synthesize_command(args):
         manager = ProvenanceManager()
         provenance = manager.generate_provenance(artifacts)
 
-        # Ensure output directory exists
-        out_path.mkdir(parents=True, exist_ok=True)
-
         # Write provenance snapshot for traceability
         try:
-            import json as _json
-            (out_path / "provenance.json").write_text(_json.dumps(provenance, indent=2), encoding="utf-8")
+            (out_path / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
         except Exception:
             # Fall back to plain str if JSON serialization fails for any reason
             (out_path / "provenance.json").write_text(str(provenance), encoding="utf-8")
@@ -136,22 +129,16 @@ def report_command(args):
     artifacts_path = Path(args.artifacts)
     
     # Validate docs path
-    if not os.path.exists(args.docs):
+    if not docs_path.exists():
         logging.error(f"Docs path does not exist: {args.docs}")
-        return 1
-    if not os.access(args.docs, os.R_OK):
-        logging.error(f"Docs path is not readable: {args.docs}")
         return 1
     if not docs_path.is_dir():
         logging.error(f"Docs path must be a directory: {args.docs}")
         return 1
     
     # Validate artifacts path
-    if not os.path.exists(args.artifacts):
+    if not artifacts_path.exists():
         logging.error(f"Artifacts path does not exist: {args.artifacts}")
-        return 1
-    if not os.access(args.artifacts, os.R_OK):
-        logging.error(f"Artifacts path is not readable: {args.artifacts}")
         return 1
     if not artifacts_path.is_dir():
         logging.error(f"Artifacts path must be a directory: {args.artifacts}")
@@ -183,7 +170,6 @@ def report_command(args):
             report_file = docs_path / "report.md"
             report_file.write_text(report_content, encoding="utf-8")
         elif args.format == 'json':
-            import json
             report_file = docs_path / "report.json"
             report_file.write_text(json.dumps({"report": report_content}, indent=2), encoding="utf-8")
         
@@ -194,6 +180,9 @@ def report_command(args):
         return 1
 
 def main():
+    # Configure logging once at startup
+    logging.basicConfig(level=logging.INFO)
+    
     parser = argparse.ArgumentParser(description="Documentron Doc Synthesis CLI")
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 

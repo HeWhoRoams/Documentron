@@ -5,11 +5,12 @@ Converts Microsoft Excel spreadsheets (.xlsx) to normalized content.
 """
 
 import hashlib
+import zipfile
 from pathlib import Path
 from typing import Dict, Any, List
 # Import openpyxl lazily in functions to avoid hard import dependency at module import time.
 
-from .error_handling import MalformedFileError, EncryptedFileError, FileTooLargeError, report_skipped_file
+from .error_handling import MalformedFileError, EncryptedFileError, FileTooLargeError, DependencyError, report_skipped_file
 from .provenance import get_library_versions
 
 def calculate_file_hash(file_path: Path) -> str:
@@ -41,48 +42,60 @@ def extract_xlsx_content(file_path: Path, max_size: int) -> Dict[str, Any]:
 
     try:
         from openpyxl import load_workbook  # type: ignore
-    except Exception as e:
-        raise MalformedFileError(
-            f"XLSX support requires openpyxl; import failed: {e}"
-        )
+    except ImportError as e:
+        raise DependencyError(
+            f"XLSX support requires openpyxl library; install with: pip install openpyxl"
+        ) from e
 
     try:
         wb = load_workbook(filename=file_path, read_only=True, data_only=True)
+    except zipfile.BadZipFile as e:
+        raise EncryptedFileError(f"File appears to be encrypted: {e}")
     except Exception as e:
+        # Check if it's an openpyxl-specific parsing error
+        try:
+            from openpyxl.utils.exceptions import InvalidFileException
+            if isinstance(e, InvalidFileException):
+                raise MalformedFileError(f"Cannot parse XLSX file: {e}")
+        except ImportError:
+            pass  # openpyxl not available, continue with generic handling
+        # Fallback to generic error handling
         if "password" in str(e).lower() or "encrypted" in str(e).lower():
             raise EncryptedFileError(f"File appears to be encrypted: {e}")
         else:
             raise MalformedFileError(f"Cannot parse XLSX file: {e}")
 
-    content = {
-        "sheets": [],
-        "metadata": {}
-    }
-
-    # Extract sheets
-    for sheet_name in wb.sheetnames:
-        ws = wb[sheet_name]
-        sheet_data = {
-            "name": sheet_name,
-            "rows": []
+    try:
+        content = {
+            "sheets": [],
+            "metadata": {}
         }
 
-        for row in ws.iter_rows(values_only=True):
-            # Convert None to empty string, keep other values
-            cleaned_row = [cell if cell is not None else "" for cell in row]
-            if any(cleaned_row):  # Only include non-empty rows
-                sheet_data["rows"].append(cleaned_row)
+        # Extract sheets
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            sheet_data = {
+                "name": sheet_name,
+                "rows": []
+            }
 
-        content["sheets"].append(sheet_data)
+            for row in ws.iter_rows(values_only=True):
+                # Convert None to empty string, keep other values
+                cleaned_row = [cell if cell is not None else "" for cell in row]
+                if any(cleaned_row):  # Only include non-empty rows
+                    sheet_data["rows"].append(cleaned_row)
 
-    # Extract basic metadata
-    content["metadata"] = {
-        "sheet_count": len(wb.sheetnames),
-        "total_rows": sum(len(sheet["rows"]) for sheet in content["sheets"])
-    }
+            content["sheets"].append(sheet_data)
 
-    wb.close()
-    return content
+        # Extract basic metadata
+        content["metadata"] = {
+            "sheet_count": len(wb.sheetnames),
+            "total_rows": sum(len(sheet["rows"]) for sheet in content["sheets"])
+        }
+
+        return content
+    finally:
+        wb.close()
 
 def convert_xlsx_file(file_path: Path, output_dir: Path, max_size: int) -> Path:
     """

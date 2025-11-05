@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import List
 
 SUPPORTED_EXTENSIONS = {'.docx', '.xlsx', '.vdx'}
+# Backwards-compat alias for earlier misspelling in some callers
+SUPPORTED_EXTENTIONS = SUPPORTED_EXTENSIONS  # type: ignore
 EXCLUDED_DIRS = {'.git', '.venv', '__pycache__', 'node_modules', '.specify'}
 
 def discover_asset_files(repo_path: Path) -> List[Path]:
@@ -21,6 +23,12 @@ def discover_asset_files(repo_path: Path) -> List[Path]:
     Returns:
         List of absolute paths to supported asset files
     """
+    # Validate input path
+    if not repo_path.exists():
+        raise ValueError(f"Repository path does not exist: {repo_path}")
+    if not repo_path.is_dir():
+        raise ValueError(f"Repository path must be a directory: {repo_path}")
+    
     asset_files = []
 
     for root, dirs, files in os.walk(repo_path):
